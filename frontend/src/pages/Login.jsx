@@ -152,7 +152,10 @@ export default function Login() {
       setResetStep('confirm');
     } else {
       setError(data.error);
-      if (data.botLink) setPasswordBotLink(data.botLink);
+      if (data.botLink) {
+        setPasswordBotLink(data.botLink);
+        window.open(data.botLink, '_blank', 'noopener,noreferrer');
+        }
     }
   };
 
