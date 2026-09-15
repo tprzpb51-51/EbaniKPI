@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
+import { apiFetch } from '../api';
 
 function getMyUserId() {
   const token = localStorage.getItem('token');
@@ -72,7 +73,7 @@ export default function MapPage() {
     });
     if (activeFilter !== 'всі') params.append('type', activeFilter);
 
-    const res = await fetch(`/api/events?${params}`, {
+    const res = await apiFetch(`/api/events?${params}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -83,7 +84,7 @@ export default function MapPage() {
   const handleJoin = async (eventId) => {
     setJoiningId(eventId);
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/events/${eventId}/join`, {
+    const res = await apiFetch(`/api/events/${eventId}/join`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` }
     });

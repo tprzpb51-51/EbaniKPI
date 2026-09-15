@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Martini, Footprints, Film, Dice5, Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react';
+import { apiFetch } from '../api';
 
 const dotPattern = {
   backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)',
@@ -58,7 +59,7 @@ export default function Login() {
       return;
     }
 
-    const res = await fetch('/api/auth/login', {
+    const res = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: '+380' + loginPhone, password: loginPassword })
@@ -102,7 +103,7 @@ export default function Login() {
       return;
     }
 
-    const res = await fetch('/api/auth/register', {
+    const res = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -118,7 +119,7 @@ export default function Login() {
       setIsLogin(true);
       setLoginPhone(regData.phone);
       setLoginPassword('');
-      const linkRes = await fetch('/api/auth/telegram-link');
+      const linkRes = await apiFetch('/api/auth/telegram-link');
       const linkData = await linkRes.json();
       setTelegramLink(linkData.link || '');
       setShowVerificationChoice(true);
@@ -137,7 +138,7 @@ export default function Login() {
     }
 
     setResetLoading(true);
-    const res = await fetch('/api/auth/password-reset/request', {
+    const res = await apiFetch('/api/auth/password-reset/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: '+380' + loginPhone })
@@ -167,7 +168,7 @@ export default function Login() {
     }
 
     setResetLoading(true);
-    const res = await fetch('/api/auth/password-reset/confirm', {
+    const res = await apiFetch('/api/auth/password-reset/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

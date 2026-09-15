@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../api';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -32,7 +33,7 @@ export default function Profile() {
 
   const fetchUser = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/auth/me', {
+    const res = await apiFetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -55,7 +56,7 @@ export default function Profile() {
     setSavingName(true);
     setError('');
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/auth/name', {
+    const res = await apiFetch('/api/auth/name', {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +86,7 @@ export default function Profile() {
     formData.append('avatar', file);
 
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/auth/avatar', {
+    const res = await apiFetch('/api/auth/avatar', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData

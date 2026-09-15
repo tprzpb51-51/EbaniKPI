@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Settings, ShieldCheck, UserX, Users, X } from 'lucide-react';
+import { apiFetch } from '../api';
 
 function getMyUserId() {
   const token = localStorage.getItem('token');
@@ -37,7 +38,7 @@ export default function Chat() {
 
   const fetchMessages = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/messages/${eventId}`, {
+    const res = await apiFetch(`/api/messages/${eventId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -51,7 +52,7 @@ export default function Chat() {
 
   const fetchParticipants = async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/events/${eventId}/participants`, {
+    const res = await apiFetch(`/api/events/${eventId}/participants`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {

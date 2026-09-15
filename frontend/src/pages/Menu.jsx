@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Map, CalendarDays, User, LogOut, Flame, ShieldCheck, X } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export default function Menu() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const res = await fetch('/api/auth/me', {
+    const res = await apiFetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -52,7 +53,7 @@ export default function Menu() {
       return;
     }
 
-    const res = await fetch('/api/auth/telegram-link');
+    const res = await apiFetch('/api/auth/telegram-link');
     const data = await res.json();
     setTelegramLink(data.link || '');
     setShowVerification(true);
@@ -60,7 +61,7 @@ export default function Menu() {
 
   const fetchNearbyCount = async (lat, lng) => {
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/events/nearby-count?lat=${lat}&lng=${lng}&radius=15`, {
+    const res = await apiFetch(`/api/events/nearby-count?lat=${lat}&lng=${lng}&radius=15`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();

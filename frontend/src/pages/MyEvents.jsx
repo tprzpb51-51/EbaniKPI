@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../api';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -38,7 +39,7 @@ export default function MyEvents() {
   const fetchEvents = async () => {
     setLoading(true);
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/events/my', {
+    const res = await apiFetch('/api/events/my', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -53,7 +54,7 @@ export default function MyEvents() {
     if (!window.confirm('Скасувати цю подію? Учасники більше не зможуть приєднатися.')) return;
 
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/events/${eventId}/cancel`, {
+    const res = await apiFetch(`/api/events/${eventId}/cancel`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` }
     });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { ArrowLeft, Search, Camera, ChevronDown } from 'lucide-react';
+import { apiFetch } from '../api';
 
 const THEMES = {
   'прогулянка': {
@@ -174,7 +175,7 @@ export default function CreateEvent() {
     if (photo) formData.append('photo', photo);
 
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/events', {
+    const res = await apiFetch('/api/events', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData
