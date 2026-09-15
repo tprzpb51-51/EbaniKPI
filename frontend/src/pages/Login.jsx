@@ -23,6 +23,8 @@ export default function Login() {
   const [showVerificationChoice, setShowVerificationChoice] = useState(false);
   const [telegramLink, setTelegramLink] = useState('');
   const [passwordBotLink, setPasswordBotLink] = useState('');
+  const [isVerified, setIsVerified] = useState(false);
+  const [verifiedMsg, setVerifiedMsg] = useState('');
 
   const [regData, setRegData] = useState({
     name: '',
@@ -190,6 +192,23 @@ export default function Login() {
       setError(data.error);
     }
   };
+
+  useEffect(() => {
+    if (!showVerificationChoice || loginPhone.length !== 9) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const res = await apiFetch(`/api/auth/verification-status?phone=%2B380${loginPhone}`);
+        const data = await res.json();
+        if (data.verified) {
+          setIsVerified(true);
+          clearInterval(timer);
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [showVerificationChoice, loginPhone]);
 
   return (
     <div className="min-h-screen bg-night flex items-center justify-center p-4 relative overflow-hidden">
@@ -474,7 +493,7 @@ export default function Login() {
         </div>
       </div>
 
-      {showVerificationChoice && (
+            {showVerificationChoice && (
         <div className="fixed inset-0 z-50 bg-night/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-nightLight border border-white/10 rounded-3xl p-5 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-lime/15 text-lime flex items-center justify-center mb-4">
@@ -482,7 +501,7 @@ export default function Login() {
             </div>
             <h2 className="text-white font-display text-xl font-bold">Підтвердити акаунт?</h2>
             <p className="text-gray-400 text-sm leading-relaxed mt-2">
-              Верифікація через Telegram відкриє створення подій і допоможе відновити пароль.
+              Натисніть «Верифікувати акаунт», поділіться номером у боті, а тоді поверніться сюди — кнопка «Готово» стане активною сама.
             </p>
             <div className="flex flex-col gap-2 mt-5">
               <button
@@ -494,6 +513,18 @@ export default function Login() {
                 Верифікувати акаунт
               </button>
               <button
+                type="button"
+                disabled={!isVerified}
+                onClick={() => {
+                  setShowVerificationChoice(false);
+                  setIsVerified(false);
+                  setVerifiedMsg('Акаунт підтверджено!');
+                }}
+                className="bg-lime text-night font-display font-semibold rounded-xl py-3.5 transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isVerified ? 'Готово ✓' : 'Очікуємо підтвердження...'}
+              </button>
+                            <button
                 type="button"
                 onClick={() => setShowVerificationChoice(false)}
                 className="bg-night text-gray-300 font-medium rounded-xl py-3.5 hover:bg-white/10 transition"

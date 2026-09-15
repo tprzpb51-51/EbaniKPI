@@ -10,7 +10,8 @@ const {
 	updateName,
 	requestPasswordReset,
 	confirmPasswordReset,
-	getTelegramLink
+	getTelegramLink,
+	getVerificationStatus
 } = require('../controllers/authController');
 
 router.post('/register', register);
@@ -21,5 +22,6 @@ router.patch('/name', authMiddleware, updateName);
 router.post('/password-reset/request', requestPasswordReset);
 router.post('/password-reset/confirm', confirmPasswordReset);
 router.get('/telegram-link', getTelegramLink);
+router.get('/verification-status', getVerificationStatus);
 
 module.exports = router;

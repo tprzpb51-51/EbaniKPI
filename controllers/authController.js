@@ -194,6 +194,17 @@ const getTelegramLink = async (req, res) => {
   }
 };
 
+const getVerificationStatus = async (req, res) => {
+  try {
+    const phone = toStoredPhone(req.query.phone);
+    const user = await User.findOne({ where: { phone }, attributes: ['phoneVerified'] });
+    res.json({ verified: Boolean(user?.phoneVerified) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Помилка сервера' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -202,5 +213,6 @@ module.exports = {
   updateName,
   requestPasswordReset,
   confirmPasswordReset,
-  getTelegramLink
+  getTelegramLink,
+  getVerificationStatus
 };
