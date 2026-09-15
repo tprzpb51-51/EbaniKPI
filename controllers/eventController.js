@@ -1,6 +1,7 @@
 const Event = require('../models/Event');
 const User = require('../models/User');
 const EventParticipant = require('../models/EventParticipant');
+const EventBlock = require('../models/EventBlock');
 const Block = require('../models/Block');
 const { Op } = require('sequelize');
 const sequelize = require('../db');
@@ -18,6 +19,14 @@ const getDistanceKm = (lat1, lon1, lat2, lon2) => {
 
 const createEvent = async (req, res) => {
   try {
+    const organizer = await User.findByPk(req.userId);
+    if (!organizer?.phoneVerified) {
+      return res.status(403).json({
+        code: 'PHONE_NOT_VERIFIED',
+        error: 'Підтвердіть номер телефону через Telegram, щоб створювати події'
+      });
+    }
+
     const { type, ageMin, ageMax, genderPreference, maxParticipants, comment, latitude, longitude, startTime } = req.body;
 
     if (
@@ -57,6 +66,8 @@ const getEvents = async (req, res) => {
 
     const blocks = await Block.findAll({ where: { blockerId: req.userId } });
     const blockedIds = blocks.map(b => b.blockedId);
+    const eventBlocks = await EventBlock.findAll({ where: { blockedUserId: req.userId } });
+    const blockedEventIds = eventBlocks.map(block => block.eventId);
 
     const whereClause = {
       status: 'active',
@@ -71,17 +82,36 @@ const getEvents = async (req, res) => {
     if (blockedIds.length > 0) {
       whereClause.organizerId = { [Op.notIn]: blockedIds };
     }
+    if (blockedEventIds.length > 0) {
+      whereClause.id = { [Op.notIn]: blockedEventIds };
+    }
 
     if (type && type !== 'всі') {
-      whereClause.type = type;
+      const normalizedType = type.toLowerCase();
+      const capitalizedType = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1);
+      whereClause.type = {
+        [Op.or]: [
+          { [Op.like]: `${normalizedType}%` },
+          { [Op.like]: `${capitalizedType}%` }
+        ]
+      };
     }
 
     let events = await Event.findAll({
       where: whereClause,
-      include: [{ model: User, as: 'organizer', attributes: ['id', 'name'] }]
+      include: [
+        { model: User, as: 'organizer', attributes: ['id', 'name', 'avatarUrl'] },
+        { model: User, as: 'participants', attributes: ['id'], through: { attributes: [] } }
+      ]
     });
 
-    events = events.map(e => e.toJSON());
+    events = events
+      .filter(e => e.participants.length < e.maxParticipants)
+      .map(e => {
+        const event = e.toJSON();
+        delete event.participants;
+        return event;
+      });
 
     if (lat && lng) {
       const userLat = parseFloat(lat);
@@ -104,6 +134,58 @@ const getEvents = async (req, res) => {
   }
 };
 
+const getNearbyCount = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.userId);
+    const { lat, lng, radius } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Потрібна геолокація' });
+    }
+
+    const blocks = await Block.findAll({ where: { blockerId: req.userId } });
+    const blockedIds = blocks.map(b => b.blockedId);
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const whereClause = {
+      status: 'active',
+      ageMin: { [Op.lte]: user.age },
+      ageMax: { [Op.gte]: user.age },
+      createdAt: { [Op.gte]: oneDayAgo },
+      [Op.or]: [
+        { genderPreference: 'будь-яка' },
+        { genderPreference: user.gender }
+      ]
+    };
+
+    if (blockedIds.length > 0) {
+      whereClause.organizerId = { [Op.notIn]: blockedIds };
+    }
+
+    const eventBlocks = await EventBlock.findAll({ where: { blockedUserId: req.userId } });
+    const blockedEventIds = eventBlocks.map(block => block.eventId);
+    if (blockedEventIds.length > 0) {
+      whereClause.id = { [Op.notIn]: blockedEventIds };
+    }
+
+    const events = await Event.findAll({ where: whereClause });
+
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+    const maxRadius = radius ? parseFloat(radius) : 15;
+
+    const nearbyCount = events.filter(e =>
+      getDistanceKm(userLat, userLng, e.latitude, e.longitude) <= maxRadius
+    ).length;
+
+    res.json({ count: nearbyCount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Помилка сервера' });
+  }
+};
+
 const joinEvent = async (req, res) => {
   const t = await sequelize.transaction();
   try {
@@ -116,6 +198,18 @@ const joinEvent = async (req, res) => {
     if (!event) {
       await t.rollback();
       return res.status(404).json({ error: 'Подію не знайдено' });
+    }
+    if (event.organizerId === req.userId) {
+      await t.rollback();
+      return res.status(400).json({ error: 'Ви вже є власником цієї події' });
+    }
+    const eventBlock = await EventBlock.findOne({
+      where: { eventId: event.id, blockedUserId: req.userId },
+      transaction: t
+    });
+    if (eventBlock) {
+      await t.rollback();
+      return res.status(403).json({ error: 'Вас заблоковано для цієї події' });
     }
     if (event.status !== 'active') {
       await t.rollback();
@@ -176,6 +270,69 @@ const cancelEvent = async (req, res) => {
   }
 };
 
+const getEventParticipants = async (req, res) => {
+  try {
+    const event = await Event.findByPk(req.params.id, {
+      include: [{ model: User, as: 'participants', attributes: ['id', 'name', 'avatarUrl'], through: { attributes: [] } }]
+    });
+    if (!event) return res.status(404).json({ error: 'Подію не знайдено' });
+    if (event.organizerId !== req.userId) {
+      return res.status(403).json({ error: 'Список доступний лише власнику події' });
+    }
+    res.json(event.participants);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Помилка сервера' });
+  }
+};
+
+const blockEventParticipant = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const event = await Event.findByPk(req.params.id, { transaction });
+    const blockedUserId = Number(req.params.userId);
+
+    if (!event) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Подію не знайдено' });
+    }
+    if (event.organizerId !== req.userId) {
+      await transaction.rollback();
+      return res.status(403).json({ error: 'Заблокувати учасника може лише власник події' });
+    }
+    if (event.status !== 'active' || new Date(event.startTime) <= new Date()) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Подія вже почалась або завершена' });
+    }
+    if (blockedUserId === req.userId) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Не можна заблокувати себе' });
+    }
+
+    const participant = await EventParticipant.findOne({
+      where: { EventId: event.id, UserId: blockedUserId },
+      transaction
+    });
+    if (!participant) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Користувач не є учасником цієї події' });
+    }
+
+    await participant.destroy({ transaction });
+    await EventBlock.findOrCreate({
+      where: { eventId: event.id, blockedUserId },
+      defaults: { blockedById: req.userId },
+      transaction
+    });
+    await transaction.commit();
+    res.json({ message: 'Користувача заблоковано для цієї події' });
+  } catch (error) {
+    await transaction.rollback();
+    console.error(error);
+    res.status(500).json({ error: 'Помилка блокування користувача' });
+  }
+};
+
 const blockUser = async (req, res) => {
   try {
     const blockedId = req.params.userId;
@@ -187,4 +344,14 @@ const blockUser = async (req, res) => {
   }
 };
 
-module.exports = { createEvent, getEvents, joinEvent, myEvents, cancelEvent, blockUser };
+module.exports = {
+  createEvent,
+  getEvents,
+  joinEvent,
+  myEvents,
+  cancelEvent,
+  blockUser,
+  getNearbyCount,
+  getEventParticipants,
+  blockEventParticipant
+};

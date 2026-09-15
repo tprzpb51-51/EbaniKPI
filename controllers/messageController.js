@@ -1,12 +1,17 @@
 const Message = require('../models/Message');
 const Event = require('../models/Event');
 const User = require('../models/User');
+const EventBlock = require('../models/EventBlock');
 
 const checkIsParticipant = async (eventId, userId) => {
   const event = await Event.findByPk(eventId, {
     include: [{ model: User, as: 'participants' }]
   });
   if (!event) return false;
+  const eventBlock = await EventBlock.findOne({
+    where: { eventId, blockedUserId: userId }
+  });
+  if (eventBlock) return false;
   const isOrganizer = event.organizerId === userId;
   const isParticipant = event.participants.some(p => p.id === userId);
   return isOrganizer || isParticipant;
@@ -40,7 +45,7 @@ const getMessages = async (req, res) => {
 
     const messages = await Message.findAll({
       where: { eventId },
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'avatarUrl'] }],
       order: [['createdAt', 'ASC']]
     });
 

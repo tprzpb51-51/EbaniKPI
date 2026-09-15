@@ -5,6 +5,8 @@ import CreateEvent from './pages/CreateEvent';
 import MapPage from './pages/MapPage';
 import MyEvents from './pages/MyEvents';
 import ProtectedRoute from './components/ProtectedRoute';
+import Chat from './pages/Chat';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
         <Route path="/create" element={<ProtectedRoute><CreateEvent /></ProtectedRoute>} />
         <Route path="/map" element={<ProtectedRoute><MapPage /></ProtectedRoute>} />
         <Route path="/my-events" element={<ProtectedRoute><MyEvents /></ProtectedRoute>} />
+        <Route path="/chat/:eventId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );
