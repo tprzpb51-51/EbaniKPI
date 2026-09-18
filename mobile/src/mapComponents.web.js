@@ -34,24 +34,28 @@ const Recenter = ({ region }) => {
   return null;
 };
 
-const MapView = ({ children, style, region, onPress }) => (
-  <MapContainer
-    center={[region.latitude, region.longitude]}
-    zoom={13}
-    style={style}
-    scrollWheelZoom
-    zoomControl
-    dragging
-    doubleClickZoom
-    touchZoom
-    attributionControl
-  >
-    <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-    <Recenter region={region} />
-    <ClickHandler onPress={onPress} />
-    {children}
-  </MapContainer>
-);
+const MapView = ({ children, style, region, onPress }) => {
+  const mapStyle = Array.isArray(style) ? Object.assign({}, ...style) : style;
+
+  return (
+    <MapContainer
+      center={[region.latitude, region.longitude]}
+      zoom={13}
+      style={mapStyle}
+      scrollWheelZoom
+      zoomControl
+      dragging
+      doubleClickZoom
+      touchZoom
+      attributionControl
+    >
+      <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <Recenter region={region} />
+      <ClickHandler onPress={onPress} />
+      {children}
+    </MapContainer>
+  );
+};
 
 const Circle = ({ center, radius }) => <LeafletCircle center={[center.latitude, center.longitude]} radius={radius} pathOptions={{ color: '#5B4BFF', fillOpacity: 0.08 }} />;
 const Marker = ({ coordinate, onPress }) => (
