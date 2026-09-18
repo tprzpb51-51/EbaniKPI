@@ -180,6 +180,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+  authSectionLabel: {
+    color: '#A8A8C0',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
   authIconRow: {
     flexDirection: 'row',
     marginTop: 16,
@@ -244,6 +252,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#17172A',
     paddingHorizontal: 18,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 22 : 16,
+    paddingBottom: Platform.OS === 'android' ? 28 : 18,
   },
   header: {
     flexDirection: 'row',
@@ -350,6 +360,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     marginBottom: 12,
+  },
+  formIntro: {
+    color: '#A8A8C0',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 14,
   },
   label: {
     fontSize: 12,
@@ -1253,6 +1269,8 @@ export default function App() {
   const [editAge, setEditAge] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
   const avatarInputRef = useRef(null);
   const [eventPhoto, setEventPhoto] = useState(null);
   const [eventTheme, setEventTheme] = useState('');
@@ -1323,14 +1341,21 @@ export default function App() {
   };
 
   const searchAddress = async () => {
-    if (!addressQuery.trim()) return;
+    const query = addressQuery.trim();
+    if (!query) {
+      Alert.alert('Пошук адреси', 'Введи назву вулиці або місця');
+      return;
+    }
     try {
       setSearchingAddress(true);
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(addressQuery)}&accept-language=uk&countrycodes=ua&limit=5`, {
-        headers: { Accept: 'application/json' },
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}&accept-language=uk&countrycodes=ua&limit=5`, {
+        headers: { Accept: 'application/json', 'User-Agent': 'EbaniKPI/1.0 location search' },
       });
       const data = await response.json();
       setAddressResults(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data) || data.length === 0) {
+        Alert.alert('Пошук адреси', 'Нічого не знайдено. Спробуй інший запит.');
+      }
     } catch (error) {
       Alert.alert('Пошук адреси', 'Не вдалося знайти адресу');
     } finally {
@@ -1544,6 +1569,7 @@ export default function App() {
         setIsLoading(false);
         return;
       }
+
       setToken(savedToken);
       setUser(userData);
       setAvatarUrl(resolveAssetUrl(userData.avatarUrl) || '');
@@ -1803,12 +1829,24 @@ export default function App() {
   };
 
   const saveProfile = async () => {
+    if (isSavingProfile) return;
+
+    const trimmedName = editName.trim();
+    const numericAge = Number(editAge);
+    setProfileMessage('');
+
+    if (!token) {
+      setProfileMessage('Сесія закінчилася. Увійди в акаунт ще раз.');
+      return;
+    }
+
     try {
-      if (!editName.trim() || !editAge) {
+      if (!trimmedName || !Number.isInteger(numericAge) || numericAge < 1 || numericAge > 120) {
         Alert.alert('Помилка', 'Вкажи ім’я та вік');
         return;
       }
 
+      setIsSavingProfile(true);
       const headers = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -1816,27 +1854,40 @@ export default function App() {
       const response = await fetchWithTimeout(`${API_URL}/auth/profile`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ name: editName.trim(), age: Number(editAge) }),
+        body: JSON.stringify({ name: trimmedName, age: numericAge }),
       });
-      const updatedUser = await response.json();
+      const responseText = await response.text();
+      let updatedUser = {};
+      try {
+        updatedUser = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        updatedUser = {};
+      }
       if (!response.ok) {
-        const errorData = updatedUser;
-        Alert.alert('Помилка', errorData.error || 'Не вдалося зберегти профіль');
+        const message = updatedUser.error || `Не вдалося зберегти профіль (${response.status})`;
+        setProfileMessage(message);
+        Alert.alert('Помилка', message);
         return;
       }
 
       setUser(updatedUser);
+      setEditName(updatedUser.name || trimmedName);
+      setEditAge(String(updatedUser.age || numericAge));
       setAvatarUrl(resolveAssetUrl(updatedUser.avatarUrl) || '');
+      setProfileMessage('Профіль збережено');
       Alert.alert('Готово', 'Профіль оновлено');
     } catch (error) {
+      setProfileMessage('Сервер недоступний. Перевір підключення до інтернету.');
       Alert.alert('Помилка', 'Сервер недоступний');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
   const requestPasswordReset = async () => {
     setAuthError('');
     if (phone.length !== 9) {
-      setAuthError('Введіть 9 цифр номера телефону');
+      setAuthError('Введи 9 цифр номера телефону');
       return;
     }
     try {
@@ -1863,11 +1914,11 @@ export default function App() {
   const confirmPasswordReset = async () => {
     setAuthError('');
     if (resetCode.length !== 6) {
-      setAuthError('Введіть 6-значний код із Telegram');
+      setAuthError('Введи 6-значний код із Telegram');
       return;
     }
     if (resetPassword.length < 4) {
-      setAuthError('Пароль має містити мінімум 4 символи');
+      setAuthError('Пароль має містити щонайменше 4 символи');
       return;
     }
     try {
@@ -1914,39 +1965,41 @@ export default function App() {
   const handleAuth = async () => {
     try {
       setAuthError('');
-      if (!phone || !password) {
-        setAuthError('Введіть телефон і пароль');
+      const normalizedName = name.trim();
+      const normalizedPassword = password.trim();
+      if (!phone || !normalizedPassword) {
+        setAuthError('Введи телефон і пароль');
         return;
       }
 
       if (phone.length !== 9) {
-        setAuthError('Введіть 9 цифр номера телефону після +380');
+        setAuthError('Введи 9 цифр номера телефону після +380');
         return;
       }
 
       if (authMode === 'register') {
-        if (!name || !age) {
-          setAuthError('Заповніть ім’я і вік');
+        if (normalizedName.length < 2 || normalizedName.length > 60 || !age) {
+          setAuthError('Вкажи ім’я (від 2 символів) і вік');
           return;
         }
-        if (Number(age) < 1 || Number(age) > 120) {
-          setAuthError('Вік має бути від 1 до 120 років');
+        if (!Number.isInteger(Number(age)) || Number(age) < 1 || Number(age) > 120) {
+          setAuthError('Вік має бути цілим числом від 1 до 120 років');
           return;
         }
-        if (password.length < 4) {
-          setAuthError('Пароль має містити мінімум 4 символи');
+        if (normalizedPassword.length < 4) {
+          setAuthError('Пароль має містити щонайменше 4 символи');
           return;
         }
-        if (password !== confirmPassword) {
-          setAuthError('Паролі не співпадають');
+        if (normalizedPassword !== confirmPassword.trim()) {
+          setAuthError('Паролі не збігаються');
           return;
         }
       }
 
       const endpoint = authMode === 'login' ? 'auth/login' : 'auth/register';
       const payload = authMode === 'login'
-        ? { phone: `+380${phone}`, password }
-        : { phone: `+380${phone}`, password, name, age: Number(age), gender };
+        ? { phone: `+380${phone}`, password: normalizedPassword }
+        : { phone: `+380${phone}`, password: normalizedPassword, name: normalizedName, age: Number(age), gender };
 
       const response = await fetchWithTimeout(`${API_URL}/${endpoint}`, {
         method: 'POST',
@@ -2082,11 +2135,11 @@ export default function App() {
         return;
       }
       if (!eventTheme || !eventSubtype) {
-        Alert.alert('Помилка', 'Оберіть тему та формат події');
+        Alert.alert('Помилка', 'Обери тему та формат події');
         return;
       }
       if (!selectedTime) {
-        Alert.alert('Помилка', 'Оберіть час події');
+        Alert.alert('Помилка', 'Обери час події');
         return;
       }
 
@@ -2098,13 +2151,34 @@ export default function App() {
         Alert.alert('Помилка', 'Опиши свій формат події');
         return;
       }
+      const ageMin = Number(eventForm.ageMin);
+      const ageMax = Number(eventForm.ageMax);
+      const maxParticipants = Number(eventForm.maxParticipants);
+      const comment = eventForm.comment.trim();
+      if (!Number.isInteger(ageMin) || !Number.isInteger(ageMax) || ageMin < 1 || ageMax > 120 || ageMin > ageMax) {
+        Alert.alert('Помилка', 'Перевір віковий діапазон: від 1 до 120 років');
+        return;
+      }
+      if (!Number.isInteger(maxParticipants) || maxParticipants < 2 || maxParticipants > 100) {
+        Alert.alert('Помилка', 'Вкажи від 2 до 100 учасників');
+        return;
+      }
+      if (selectedDate.getTime() <= Date.now()) {
+        Alert.alert('Помилка', 'Обери майбутні дату та час події');
+        return;
+      }
+      if (comment.length < 3 || comment.length > 500) {
+        Alert.alert('Помилка', 'Коментар має містити від 3 до 500 символів');
+        return;
+      }
       const finalType = `${THEMES[eventTheme].label}: ${subtypeLabel}`;
       const payload = {
         ...eventForm,
         type: finalType,
-        ageMin: Number(eventForm.ageMin),
-        ageMax: Number(eventForm.ageMax),
-        maxParticipants: Number(eventForm.maxParticipants),
+        ageMin,
+        ageMax,
+        maxParticipants,
+        comment,
         genderPreference: eventForm.genderPreference === 'будь-хто' ? 'будь-яка' : eventForm.genderPreference,
         latitude: mapPosition.latitude,
         longitude: mapPosition.longitude,
@@ -2112,7 +2186,7 @@ export default function App() {
       };
 
       if (!payload.type || !payload.startTime || !payload.comment) {
-        Alert.alert('Помилка', 'Заповніть всі обов’язкові поля');
+        Alert.alert('Помилка', 'Заповни всі обов’язкові поля');
         return;
       }
 
@@ -2216,6 +2290,7 @@ export default function App() {
             </View>
 
             <View style={styles.authCard}>
+              <Text style={styles.authSectionLabel}>{authMode === 'login' ? 'Повернення до спільноти' : 'Створення акаунта'}</Text>
               <View style={styles.authTabs}>
                 <TouchableOpacity
                   style={[styles.authTab, authMode === 'login' && styles.authTabLogin]}
@@ -2243,7 +2318,7 @@ export default function App() {
                   </View>
                   <TouchableOpacity onPress={() => { setResetStep('request'); setAuthError(''); }}><Text style={[styles.secondaryText, { textAlign: 'right', color: '#85859E' }]}>Забули пароль?</Text></TouchableOpacity>
                   {authError ? <Text style={styles.authError}>{authError}</Text> : null}
-                  <TouchableOpacity style={styles.primaryButton} onPress={handleAuth}><Text style={styles.primaryButtonText}>Погнали  →</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.primaryButton} onPress={handleAuth}><Text style={styles.primaryButtonText}>Увійти  →</Text></TouchableOpacity>
                 </>
               )}
 
@@ -2251,7 +2326,7 @@ export default function App() {
                 <>
                   <TouchableOpacity onPress={() => setResetStep('login')}><Text style={styles.authHint}>← Назад до входу</Text></TouchableOpacity>
                   <Text style={styles.authTitle}>Відновлення пароля</Text>
-                  <Text style={styles.authHint}>Код для відновлення прийде у прив’язаний Telegram.</Text>
+                  <Text style={styles.authHint}>Код для відновлення надійде у прив’язаний Telegram.</Text>
                   <View style={styles.phoneRow}><Text style={styles.phonePrefix}>+380</Text><TextInput style={styles.phoneInput} placeholder="991234567" placeholderTextColor="#55556F" value={phone} onChangeText={handlePhoneChange} keyboardType="number-pad" maxLength={9} /></View>
                   {passwordBotLink ? <TouchableOpacity onPress={() => Linking.openURL(passwordBotLink)}><Text style={{ color: '#D4F857', marginBottom: 10 }}>Відкрити password bot</Text></TouchableOpacity> : null}
                   {authError ? <Text style={styles.authError}>{authError}</Text> : null}
@@ -2325,7 +2400,10 @@ export default function App() {
       )}
       <View style={styles.homeContainer}>
         {activeTab === 'menu' ? (
-          <>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: Platform.OS === 'android' ? 24 : 12 }}
+          >
             <View style={styles.menuHeader}>
               <Text style={styles.menuGreeting}>Привіт, {user?.name || 'друже'}</Text>
               <TouchableOpacity style={styles.profileButton} onPress={() => setActiveTab('profile')}>
@@ -2382,7 +2460,7 @@ export default function App() {
             <TouchableOpacity onPress={handleLogout} style={{ alignSelf: 'center' }}>
               <Text style={styles.logoutText}>⇥  Вийти з акаунта</Text>
             </TouchableOpacity>
-          </>
+          </ScrollView>
         ) : null}
 
         {activeTab !== 'menu' && activeTab !== 'my' && activeTab !== 'chat' && <View style={styles.header}>
@@ -2471,6 +2549,7 @@ export default function App() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.formCard}>
               <Text style={styles.formTitle}>Створити подію</Text>
+              <Text style={styles.formIntro}>Задай формат зустрічі, час і місце. Подію побачать люди поруч.</Text>
 
               <Text style={styles.label}>Тема</Text>
               <View style={styles.chips}>
@@ -2826,6 +2905,7 @@ export default function App() {
                   )}
                 </View>
                 <Text style={styles.formTitle}>{user?.name || 'Профіль'}</Text>
+                <Text style={styles.formIntro}>Онови ім’я, вік або фото, щоб інші учасники тебе впізнали.</Text>
               </View>
 
               <View style={styles.profileActions}>
@@ -2862,8 +2942,9 @@ export default function App() {
                   <Text style={{ color: '#17172A', fontWeight: '800', fontSize: 12 }}>{userVerificationState}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.formButton} onPress={saveProfile}>
-                <Text style={styles.formButtonText}>Зберегти профіль</Text>
+              {profileMessage ? <Text style={styles.authHint}>{profileMessage}</Text> : null}
+              <TouchableOpacity style={[styles.formButton, isSavingProfile && { opacity: 0.6 }]} onPress={saveProfile} disabled={isSavingProfile}>
+                <Text style={styles.formButtonText}>{isSavingProfile ? 'Збереження...' : 'Зберегти профіль'}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>

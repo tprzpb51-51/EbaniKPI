@@ -7,6 +7,7 @@ const Message = require('../models/Message');
 const { Op } = require('sequelize');
 const sequelize = require('../db');
 const { uploadImage } = require('../services/cloudinary');
+const { sendChatPush } = require('../services/pushNotifications');
 
 const getDistanceKm = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
@@ -211,19 +212,21 @@ const getNearbyCount = async (req, res) => {
 
 const joinEvent = async (req, res) => {
   const t = await sequelize.transaction();
+  const rollback = async () => {
+    if (!t.finished) await t.rollback();
+  };
   try {
     const event = await Event.findByPk(req.params.id, {
       include: [{ model: User, as: 'participants' }],
-      transaction: t,
-      lock: t.LOCK.UPDATE
+      transaction: t
     });
 
     if (!event) {
-      await t.rollback();
+      await rollback();
       return res.status(404).json({ error: 'Подію не знайдено' });
     }
     if (event.organizerId === req.userId) {
-      await t.rollback();
+      await rollback();
       return res.status(400).json({ error: 'Ви вже є власником цієї події' });
     }
     const eventBlock = await EventBlock.findOne({
@@ -231,15 +234,15 @@ const joinEvent = async (req, res) => {
       transaction: t
     });
     if (eventBlock) {
-      await t.rollback();
+      await rollback();
       return res.status(403).json({ error: 'Вас заблоковано для цієї події' });
     }
     if (event.status !== 'active') {
-      await t.rollback();
+      await rollback();
       return res.status(400).json({ error: 'Подія неактивна' });
     }
     if (event.participants.length >= event.maxParticipants - 1) {
-      await t.rollback();
+      await rollback();
       return res.status(400).json({ error: 'Немає вільних місць' });
     }
 
@@ -249,16 +252,20 @@ const joinEvent = async (req, res) => {
     });
 
     if (alreadyJoined || event.participants.some(p => p.id === req.userId)) {
-      await t.rollback();
+      await rollback();
       return res.status(400).json({ error: 'Ви вже приєднались' });
     }
 
-    await event.addParticipant(req.userId, { transaction: t });
+    await EventParticipant.create({
+      EventId: event.id,
+      UserId: req.userId,
+      status: 'joined'
+    }, { transaction: t });
     await t.commit();
 
     res.json({ message: 'Ви приєднались до події' });
   } catch (error) {
-    await t.rollback();
+    await rollback();
     console.error(error);
     res.status(500).json({ error: 'Помилка сервера' });
   }
@@ -301,7 +308,9 @@ const myEvents = async (req, res) => {
 
 const cancelEvent = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = await Event.findByPk(req.params.id, {
+      include: [{ model: User, as: 'participants', attributes: ['id', 'pushToken'], through: { attributes: [] } }]
+    });
     if (!event) return res.status(404).json({ error: 'Подію не знайдено' });
     if (event.organizerId !== req.userId) {
       return res.status(403).json({ error: 'Це не ваша подія' });
@@ -309,6 +318,18 @@ const cancelEvent = async (req, res) => {
 
     event.status = 'cancelled';
     await event.save();
+
+    const participantTokens = (event.participants || [])
+      .filter((participant) => participant.id !== req.userId)
+      .map((participant) => participant.pushToken)
+      .filter(Boolean);
+
+    sendChatPush({
+      tokens: participantTokens,
+      title: 'Подію скасовано',
+      body: `${event.type || 'Подію'} більше не буде`,
+      data: { eventId: String(event.id), type: 'event_cancelled' }
+    }).catch((error) => console.error('Помилка push про скасування події:', error.message));
 
     res.json({ message: 'Подію скасовано' });
   } catch (error) {

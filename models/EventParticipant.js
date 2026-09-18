@@ -5,6 +5,9 @@ const Event = require('./Event');
 
 const EventParticipant = sequelize.define('EventParticipant', {
   status: { type: DataTypes.STRING, defaultValue: 'joined' }
+}, {
+  timestamps: true,
+  id: false
 });
 
 Event.belongsToMany(User, { through: EventParticipant, as: 'participants' });
