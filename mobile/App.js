@@ -1416,7 +1416,10 @@ export default function App() {
         return;
       }
 
-      const permission = await Location.requestForegroundPermissionsAsync();
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted' && permission.status === 'undetermined' && permission.canAskAgain !== false) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
       if (permission.status !== 'granted') {
         setLocationStatus('denied');
         await loadMapEvents(token);
@@ -1431,7 +1434,7 @@ export default function App() {
       setLocationStatus('denied');
       await loadMapEvents(token);
     });
-  }, [token, mapFilter]);
+  }, [token]);
 
   useEffect(() => {
     if (!showVerificationChoice || phone.length !== 9) return undefined;
