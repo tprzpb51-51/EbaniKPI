@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const { sendTelegramMessage, getTelegramBotLink } = require('../services/telegramBot');
 const { normalizePhone, toStoredPhone } = require('../utils/phone');
+const { uploadImage } = require('../services/cloudinary');
 
 require('dotenv').config();
 const SECRET_KEY = process.env.JWT_SECRET;
@@ -111,7 +112,7 @@ const updateAvatar = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'Файл не завантажено' });
     }
-    const avatarUrl = '/uploads/' + req.file.filename;
+    const avatarUrl = await uploadImage(req.file.buffer, 'ebanikpi/avatars');
     await User.update({ avatarUrl }, { where: { id: req.userId } });
     res.json({ message: 'Аватар оновлено', avatarUrl });
   } catch (error) {

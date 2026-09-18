@@ -61,11 +61,6 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
   }
 };
 
-              <TouchableOpacity style={styles.locationButton} onPress={triggerEventPhotoPicker}>
-                <Text style={styles.locationButtonText}>{eventPhoto ? 'Змінити фото локації' : 'Додати фото локації'}</Text>
-              </TouchableOpacity>
-              {eventPhoto && <Image source={{ uri: eventPhoto.uri }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 12 }} />}
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -651,6 +646,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
     padding: 14,
     marginBottom: 14,
+  },
+  eventPhoto: {
+    width: '100%',
+    height: 180,
+    borderRadius: 14,
+    marginTop: 10,
+    marginBottom: 10,
   },
   messageList: {
     flex: 1,
@@ -2424,6 +2426,7 @@ export default function App() {
             {selectedEvent && (
               <View style={styles.selectedEventCard}>
                 <Text style={styles.eventType}>{selectedEvent.type}</Text>
+                {selectedEvent.locationPhotoUrl && <Image source={{ uri: resolveAssetUrl(selectedEvent.locationPhotoUrl) }} style={styles.eventPhoto} />}
                 <Text style={styles.metaText}>{selectedEvent.comment || 'Без опису'}</Text>
                 <Text style={styles.metaText}>Вільних місць: {selectedEvent.seatsLeft ?? '—'}</Text>
                 {selectedEvent.organizerId === user?.id ? (
@@ -2485,6 +2488,7 @@ export default function App() {
             {selectedEvent && (
               <View style={[styles.selectedEventCard, styles.mapOverlay]}>
                 <Text style={styles.eventType}>Тема: {String(selectedEvent.type || '').split(':')[0].trim()}</Text>
+                {selectedEvent.locationPhotoUrl && <Image source={{ uri: resolveAssetUrl(selectedEvent.locationPhotoUrl) }} style={styles.eventPhoto} />}
                 <Text style={styles.metaText}>Підтема: {String(selectedEvent.type || '').split(':').slice(1).join(':').trim() || 'Не вказано'}</Text>
                 <Text style={styles.metaText}>Коментар: {selectedEvent.comment || 'Без опису'}</Text>
                 <Text style={styles.metaText}>Вільних місць: {selectedEvent.seatsLeft ?? '—'}</Text>
@@ -2656,6 +2660,10 @@ export default function App() {
                 </MapView>
               </View>
               <Text style={styles.authHint}>Обрано: {mapPosition.latitude.toFixed(5)}, {mapPosition.longitude.toFixed(5)}</Text>
+              <TouchableOpacity style={styles.locationButton} onPress={triggerEventPhotoPicker}>
+                <Text style={styles.locationButtonText}>{eventPhoto ? 'Змінити фото локації' : 'Додати фото локації'}</Text>
+              </TouchableOpacity>
+              {eventPhoto && <Image source={{ uri: eventPhoto.uri }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 12 }} />}
 
               <Text style={styles.label}>Коментар</Text>
               <TextInput

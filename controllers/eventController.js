@@ -6,6 +6,7 @@ const Block = require('../models/Block');
 const Message = require('../models/Message');
 const { Op } = require('sequelize');
 const sequelize = require('../db');
+const { uploadImage } = require('../services/cloudinary');
 
 const getDistanceKm = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
@@ -60,7 +61,9 @@ const createEvent = async (req, res) => {
       return res.status(403).json({ error: 'Створювати вечірки можна лише з 18 років' });
     }
 
-    const locationPhotoUrl = req.file ? '/uploads/' + req.file.filename : null;
+    const locationPhotoUrl = req.file
+      ? await uploadImage(req.file.buffer, 'ebanikpi/events')
+      : null;
 
     const event = await Event.create({
       type, ageMin, ageMax,
