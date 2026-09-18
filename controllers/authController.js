@@ -61,21 +61,6 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Введіть телефон і пароль' });
     }
 
-    const registerPushToken = async (req, res) => {
-      try {
-        const pushToken = typeof req.body.pushToken === 'string' ? req.body.pushToken.trim() : '';
-        if (!pushToken || !pushToken.startsWith('ExponentPushToken[')) {
-          return res.status(400).json({ error: 'Некоректний push token' });
-        }
-
-        await User.update({ pushToken }, { where: { id: req.userId } });
-        res.json({ message: 'Push token збережено' });
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Не вдалося зберегти push token' });
-      }
-    };
-
     const user = await User.findOne({ where: { phone } });
     if (!user) {
       return res.status(400).json({ error: 'Користувача не знайдено' });
@@ -153,6 +138,21 @@ const updateAge = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Помилка оновлення віку' });
+  }
+};
+
+const registerPushToken = async (req, res) => {
+  try {
+    const pushToken = typeof req.body.pushToken === 'string' ? req.body.pushToken.trim() : '';
+    if (!pushToken || !pushToken.startsWith('ExponentPushToken[')) {
+      return res.status(400).json({ error: 'Некоректний push token' });
+    }
+
+    await User.update({ pushToken }, { where: { id: req.userId } });
+    res.json({ message: 'Push token збережено' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Не вдалося зберегти push token' });
   }
 };
     
