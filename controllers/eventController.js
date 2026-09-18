@@ -3,6 +3,7 @@ const User = require('../models/User');
 const EventParticipant = require('../models/EventParticipant');
 const EventBlock = require('../models/EventBlock');
 const Block = require('../models/Block');
+const Message = require('../models/Message');
 const { Op } = require('sequelize');
 const sequelize = require('../db');
 
@@ -17,16 +18,29 @@ const getDistanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+const serializeEventWithCount = (event) => {
+  const raw = event.toJSON ? event.toJSON() : event;
+  const participants = Array.isArray(raw.participants) ? raw.participants : [];
+  const organizerId = raw.organizerId ?? raw.organizer?.id ?? null;
+  const participantIds = participants
+    .map((participant) => participant?.id ?? participant?.UserId ?? participant?.userId)
+    .filter((id) => id !== null && id !== undefined && id !== '');
+
+  if (organizerId !== null && organizerId !== undefined && organizerId !== '') {
+    participantIds.push(organizerId);
+  }
+
+  const attendingCount = new Set(participantIds).size;
+  return {
+    ...raw,
+    participantCount: attendingCount,
+    seatsLeft: Math.max(0, Number(raw.maxParticipants || 0) - attendingCount),
+    participantsCountLabel: `${attendingCount} / ${raw.maxParticipants || 0}`
+  };
+};
+
 const createEvent = async (req, res) => {
   try {
-    const organizer = await User.findByPk(req.userId);
-    if (!organizer?.phoneVerified) {
-      return res.status(403).json({
-        code: 'PHONE_NOT_VERIFIED',
-        error: 'Підтвердіть номер телефону через Telegram, щоб створювати події'
-      });
-    }
-
     const { type, ageMin, ageMax, genderPreference, maxParticipants, comment, latitude, longitude, startTime } = req.body;
 
     if (
@@ -39,6 +53,11 @@ const createEvent = async (req, res) => {
       !startTime
     ) {
       return res.status(400).json({ error: 'Заповніть обовʼязкові поля' });
+    }
+
+    const creator = await User.findByPk(req.userId, { attributes: ['age'] });
+    if (creator.age < 18 && String(type).toLowerCase().includes('вечірка')) {
+      return res.status(403).json({ error: 'Створювати вечірки можна лише з 18 років' });
     }
 
     const locationPhotoUrl = req.file ? '/uploads/' + req.file.filename : null;
@@ -71,11 +90,16 @@ const getEvents = async (req, res) => {
 
     const whereClause = {
       status: 'active',
-      ageMin: { [Op.lte]: user.age },
-      ageMax: { [Op.gte]: user.age },
       [Op.or]: [
-        { genderPreference: 'будь-яка' },
-        { genderPreference: user.gender }
+        { organizerId: req.userId },
+        {
+          ageMin: { [Op.lte]: user.age },
+          ageMax: { [Op.gte]: user.age },
+          [Op.or]: [
+            { genderPreference: 'будь-яка' },
+            { genderPreference: user.gender }
+          ]
+        }
       ]
     };
 
@@ -106,12 +130,8 @@ const getEvents = async (req, res) => {
     });
 
     events = events
-      .filter(e => e.participants.length < e.maxParticipants)
-      .map(e => {
-        const event = e.toJSON();
-        delete event.participants;
-        return event;
-      });
+      .filter(e => e.organizerId === req.userId || (1 + (e.participants?.length || 0)) < e.maxParticipants)
+      .map(e => serializeEventWithCount(e));
 
     if (lat && lng) {
       const userLat = parseFloat(lat);
@@ -123,7 +143,7 @@ const getEvents = async (req, res) => {
           ...e,
           distanceKm: getDistanceKm(userLat, userLng, e.latitude, e.longitude)
         }))
-        .filter(e => e.distanceKm <= maxRadius)
+        .filter(e => e.organizerId === req.userId || e.distanceKm <= maxRadius)
         .sort((a, b) => a.distanceKm - b.distanceKm);
     }
 
@@ -215,13 +235,17 @@ const joinEvent = async (req, res) => {
       await t.rollback();
       return res.status(400).json({ error: 'Подія неактивна' });
     }
-    if (event.participants.length >= event.maxParticipants) {
+    if (event.participants.length >= event.maxParticipants - 1) {
       await t.rollback();
       return res.status(400).json({ error: 'Немає вільних місць' });
     }
 
-    const alreadyJoined = event.participants.find(p => p.id === req.userId);
-    if (alreadyJoined) {
+    const alreadyJoined = await EventParticipant.findOne({
+      where: { EventId: event.id, UserId: req.userId },
+      transaction: t
+    });
+
+    if (alreadyJoined || event.participants.some(p => p.id === req.userId)) {
       await t.rollback();
       return res.status(400).json({ error: 'Ви вже приєднались' });
     }
@@ -240,12 +264,32 @@ const joinEvent = async (req, res) => {
 const myEvents = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
-      include: [{ model: Event, as: 'joinedEvents' }]
+      include: [{ model: Event, as: 'joinedEvents', attributes: ['id'] }]
     });
 
-    const organized = await Event.findAll({ where: { organizerId: req.userId } });
+    const joinedEventIds = (user.joinedEvents || []).map(event => event.id);
+    const joinedEventsList = joinedEventIds.length
+      ? await Event.findAll({
+          where: { id: joinedEventIds },
+          include: [
+            { model: User, as: 'organizer', attributes: ['id', 'name', 'avatarUrl'] },
+            { model: User, as: 'participants', attributes: ['id'], through: { attributes: [] } }
+          ]
+        })
+      : [];
 
-    res.json({ joined: user.joinedEvents, organized });
+    const organized = await Event.findAll({
+      where: { organizerId: req.userId },
+      include: [
+        { model: User, as: 'organizer', attributes: ['id', 'name', 'avatarUrl'] },
+        { model: User, as: 'participants', attributes: ['id'], through: { attributes: [] } }
+      ]
+    });
+
+    const joinedEvents = joinedEventsList.map(event => serializeEventWithCount(event));
+    const organizedEvents = organized.map(event => serializeEventWithCount(event));
+
+    res.json({ joined: joinedEvents, organized: organizedEvents });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Помилка сервера' });

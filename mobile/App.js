@@ -1387,7 +1387,10 @@ export default function App() {
       setMapPosition(position);
       setLocationStatus('granted');
       await loadMapEvents(token, position);
-    })().catch(() => setLocationStatus('denied'));
+    })().catch(async () => {
+      setLocationStatus('denied');
+      await loadMapEvents(token);
+    });
   }, [token, mapFilter]);
 
   useEffect(() => {
@@ -1398,6 +1401,7 @@ export default function App() {
         const data = await response.json();
         if (data.verified) {
           setIsVerified(true);
+          setUser((currentUser) => currentUser ? { ...currentUser, phoneVerified: true } : currentUser);
           clearInterval(timer);
         }
       } catch (error) {
@@ -1847,7 +1851,7 @@ export default function App() {
         return;
       }
 
-      if (authMode === 'login') {
+      if (data.token) {
         await AsyncStorage.setItem('ebanikpi_token', data.token);
         setToken(data.token);
 
@@ -1863,7 +1867,9 @@ export default function App() {
           setEditAge(String(meData.age || ''));
           await Promise.all([loadEvents(data.token), loadMyEvents(data.token)]);
         }
-      } else {
+      }
+
+      if (authMode === 'register') {
         const linkResponse = await fetchWithTimeout(`${API_URL}/auth/telegram-link`);
         const linkData = await linkResponse.json();
         setTelegramLink(linkData.link || '');
@@ -2022,7 +2028,7 @@ export default function App() {
       setEventSubtype('');
       setSelectedTime('');
       setActiveTab('events');
-      await Promise.all([loadEvents(token), loadMyEvents(token)]);
+      await Promise.all([loadEvents(token), loadMyEvents(token), loadMapEvents(token, mapPosition)]);
     } catch (error) {
       console.log('Create event error:', error);
       Alert.alert('Помилка', 'Не вдалося створити подію');
@@ -2271,6 +2277,9 @@ export default function App() {
                 {selectedEvent.organizerId === user?.id ? (
                   <View style={styles.ownerNotice}>
                     <Text style={styles.ownerNoticeText}>Це твоя подія. Ти вже є її організатором.</Text>
+                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
+                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.actionButton} onPress={() => joinEvent(selectedEvent)}>
@@ -2321,19 +2330,38 @@ export default function App() {
               ))}
             </View>
             <View style={styles.mapCard}>
-              {Platform.OS === 'web' ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>Інтерактивна карта доступна в Android APK.</Text>
-                </View>
-              ) : (
-                <MapView style={styles.map} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
-                  <Circle center={mapPosition} radius={15000} fillColor="rgba(91,75,255,0.08)" strokeColor="#5B4BFF" />
-                  {mapEvents.map((item) => (
-                    <Marker key={item.id} coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }} title={item.type} description={item.comment} onPress={() => setSelectedEvent(item)} />
-                  ))}
-                </MapView>
-              )}
+              <MapView style={styles.map} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
+                <Circle center={mapPosition} radius={15000} fillColor="rgba(91,75,255,0.08)" strokeColor="#5B4BFF" />
+                {mapEvents.map((item) => (
+                  <Marker key={item.id} coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }} title={item.type} description={item.comment} onPress={() => setSelectedEvent(item)} />
+                ))}
+              </MapView>
             </View>
+            {selectedEvent && (
+              <View style={styles.selectedEventCard}>
+                <Text style={styles.eventType}>Тема: {String(selectedEvent.type || '').split(':')[0].trim()}</Text>
+                <Text style={styles.metaText}>Підтема: {String(selectedEvent.type || '').split(':').slice(1).join(':').trim() || 'Не вказано'}</Text>
+                <Text style={styles.metaText}>Коментар: {selectedEvent.comment || 'Без опису'}</Text>
+                <Text style={styles.metaText}>Вільних місць: {selectedEvent.seatsLeft ?? '—'}</Text>
+                {selectedEvent.organizerId === user?.id ? (
+                  <View style={styles.ownerNotice}>
+                    <Text style={styles.ownerNoticeText}>Це твоя подія. Ти вже є її організатором.</Text>
+                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
+                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => joinEvent(selectedEvent)}>
+                      <Text style={styles.actionButtonText}>{loadingDetails ? '...' : 'Приєднатись'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
+                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
             {mapEvents.length === 0 ? (
               <View style={styles.emptyState}><Text style={styles.emptyStateText}>Поруч поки немає доступних подій.</Text></View>
             ) : mapEvents.map((item) => (

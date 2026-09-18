@@ -8,12 +8,21 @@ const { normalizePhone, toStoredPhone } = require('../utils/phone');
 require('dotenv').config();
 const SECRET_KEY = process.env.JWT_SECRET;
 
+const validateAge = (value) => {
+  const age = Number(value);
+  if (!Number.isInteger(age) || age < 1 || age > 120) {
+    return null;
+  }
+  return age;
+};
+
 const register = async (req, res) => {
   try {
-    const { name, age, gender, password } = req.body;
+    const { name, gender, password } = req.body;
+    const age = validateAge(req.body.age);
     const phone = toStoredPhone(req.body.phone);
 
-    if (!name || !age || !gender || normalizePhone(req.body.phone).length !== 9 || !password) {
+    if (!name || age === null || !gender || normalizePhone(req.body.phone).length !== 9 || !password) {
       return res.status(400).json({ error: 'Заповніть всі поля' });
     }
 
@@ -32,7 +41,9 @@ const register = async (req, res) => {
       password: hashedPassword
     });
 
-    res.status(201).json({ message: 'Реєстрація успішна', userId: user.id });
+    const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '7d' });
+
+    res.status(201).json({ message: 'Реєстрація успішна', token, userId: user.id });
 
   } catch (error) {
     console.error(error);
@@ -110,6 +121,22 @@ const updateName = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Помилка оновлення імені" });
+  }
+};
+
+const updateAge = async (req, res) => {
+  try {
+    const age = validateAge(req.body.age);
+
+    if (age === null) {
+      return res.status(400).json({ error: 'Вік має бути цілим числом від 1 до 120 років' });
+    }
+
+    await User.update({ age }, { where: { id: req.userId } });
+    res.json({ message: 'Вік оновлено', age });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Помилка оновлення віку' });
   }
 };
 
@@ -211,6 +238,7 @@ module.exports = {
   getMe,
   updateAvatar,
   updateName,
+  updateAge,
   requestPasswordReset,
   confirmPasswordReset,
   getTelegramLink,
