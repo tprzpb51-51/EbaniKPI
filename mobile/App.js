@@ -2404,7 +2404,7 @@ export default function App() {
           </>
         ) : null}
 
-        {activeTab !== 'menu' && activeTab !== 'my' && <View style={styles.header}>
+        {activeTab !== 'menu' && activeTab !== 'my' && activeTab !== 'chat' && <View style={styles.header}>
           <TouchableOpacity onPress={activeTab === 'chat' ? goBackFromChat : goToMainMenu}>
             <Text style={styles.logoutText}>{activeTab === 'chat' ? '← Мої події' : '← Головна'}</Text>
           </TouchableOpacity>
