@@ -1223,6 +1223,38 @@ const styles = StyleSheet.create({
   },
 });
 
+const SelectedEventCard = ({ event, user, resolveAssetUrl, onClose, onJoin, loadingDetails, mapMode = false }) => {
+  const isOwner = String(event.organizerId) === String(user?.id);
+  const [theme, subtype] = String(event.type || '').split(/:\s*(.*)/s);
+
+  return (
+    <View style={[styles.selectedEventCard, mapMode && styles.mapOverlay]}>
+      <Text style={styles.eventType}>{mapMode ? `Тема: ${theme}` : event.type}</Text>
+      {event.locationPhotoUrl && <Image source={{ uri: resolveAssetUrl(event.locationPhotoUrl) }} style={styles.eventPhoto} />}
+      {mapMode && <Text style={styles.metaText}>Підтема: {subtype || 'Не вказано'}</Text>}
+      <Text style={styles.metaText}>{mapMode ? 'Коментар: ' : ''}{event.comment || 'Без опису'}</Text>
+      <Text style={styles.metaText}>Вільних місць: {event.seatsLeft ?? '—'}</Text>
+      {isOwner ? (
+        <View style={styles.ownerNotice}>
+          <Text style={styles.ownerNoticeText}>Це твоя подія. Ти вже є її організатором.</Text>
+          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={onClose}>
+            <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionButton} onPress={onJoin}>
+            <Text style={styles.actionButtonText}>{loadingDetails ? '...' : 'Приєднатись'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={onClose}>
+            <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [authMode, setAuthMode] = useState('login');
@@ -1310,7 +1342,6 @@ export default function App() {
   const [selectedTime, setSelectedTime] = useState('');
   const [mapPosition, setMapPosition] = useState({ latitude: 49.8397, longitude: 24.0297 });
   const [mapEvents, setMapEvents] = useState([]);
-  const [mapFilter, setMapFilter] = useState('всі');
   const [locationStatus, setLocationStatus] = useState('loading');
   const [addressQuery, setAddressQuery] = useState('');
   const [addressResults, setAddressResults] = useState([]);
@@ -1328,11 +1359,6 @@ export default function App() {
     startTime: '2026-12-15T19:00:00',
   });
   const days = getNextDays();
-  const visibleMapEvents = mapEvents.filter((event) => {
-    if (mapFilter === 'всі') return true;
-    const category = String(event.type || '').split(':')[0].trim().toLowerCase();
-    return category === mapFilter.toLowerCase();
-  });
 
   const handlePhoneChange = (value) => {
     let digits = value.replace(/\D/g, '');
@@ -2405,12 +2431,12 @@ export default function App() {
         ) : null}
 
         {activeTab !== 'menu' && activeTab !== 'my' && activeTab !== 'chat' && <View style={styles.header}>
-          <TouchableOpacity onPress={activeTab === 'chat' ? goBackFromChat : goToMainMenu}>
-            <Text style={styles.logoutText}>{activeTab === 'chat' ? '← Мої події' : '← Головна'}</Text>
+          <TouchableOpacity onPress={goToMainMenu}>
+            <Text style={styles.logoutText}>← Головна</Text>
           </TouchableOpacity>
           <Text style={styles.brand}>EbaniKPI</Text>
-          <TouchableOpacity onPress={activeTab === 'chat' ? goBackFromChat : goToMainMenu}>
-            <Text style={styles.logoutText}>{activeTab === 'chat' ? 'Мої події' : 'Назад'}</Text>
+          <TouchableOpacity onPress={goToMainMenu}>
+            <Text style={styles.logoutText}>Назад</Text>
           </TouchableOpacity>
         </View>}
 
@@ -2424,27 +2450,14 @@ export default function App() {
             <Text style={styles.sectionTitle}>Ближні події</Text>
 
             {selectedEvent && (
-              <View style={styles.selectedEventCard}>
-                <Text style={styles.eventType}>{selectedEvent.type}</Text>
-                {selectedEvent.locationPhotoUrl && <Image source={{ uri: resolveAssetUrl(selectedEvent.locationPhotoUrl) }} style={styles.eventPhoto} />}
-                <Text style={styles.metaText}>{selectedEvent.comment || 'Без опису'}</Text>
-                <Text style={styles.metaText}>Вільних місць: {selectedEvent.seatsLeft ?? '—'}</Text>
-                {selectedEvent.organizerId === user?.id ? (
-                  <View style={styles.ownerNotice}>
-                    <Text style={styles.ownerNoticeText}>Це твоя подія. Ти вже є її організатором.</Text>
-                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
-                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => joinEvent(selectedEvent)}>
-                    <Text style={styles.actionButtonText}>{loadingDetails ? '...' : 'Приєднатись'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
-                    <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
-                  </TouchableOpacity>
-                </View>}
-              </View>
+              <SelectedEventCard
+                event={selectedEvent}
+                user={user}
+                resolveAssetUrl={resolveAssetUrl}
+                onClose={() => setSelectedEvent(null)}
+                onJoin={() => joinEvent(selectedEvent)}
+                loadingDetails={loadingDetails}
+              />
             )}
 
             {loadingEvents ? (
@@ -2480,36 +2493,21 @@ export default function App() {
             <View style={styles.mapOnlyCard}>
               <MapView style={[styles.map, { height: '100%', minHeight: 0 }]} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
                 <Circle center={mapPosition} radius={15000} fillColor="rgba(91,75,255,0.08)" strokeColor="#5B4BFF" />
-                {visibleMapEvents.map((item) => (
+                {mapEvents.map((item) => (
                   <Marker key={item.id} coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }} title={item.type} description={item.comment} onPress={() => setSelectedEvent(item)} />
                 ))}
               </MapView>
             </View>
             {selectedEvent && (
-              <View style={[styles.selectedEventCard, styles.mapOverlay]}>
-                <Text style={styles.eventType}>Тема: {String(selectedEvent.type || '').split(':')[0].trim()}</Text>
-                {selectedEvent.locationPhotoUrl && <Image source={{ uri: resolveAssetUrl(selectedEvent.locationPhotoUrl) }} style={styles.eventPhoto} />}
-                <Text style={styles.metaText}>Підтема: {String(selectedEvent.type || '').split(':').slice(1).join(':').trim() || 'Не вказано'}</Text>
-                <Text style={styles.metaText}>Коментар: {selectedEvent.comment || 'Без опису'}</Text>
-                <Text style={styles.metaText}>Вільних місць: {selectedEvent.seatsLeft ?? '—'}</Text>
-                {selectedEvent.organizerId === user?.id ? (
-                  <View style={styles.ownerNotice}>
-                    <Text style={styles.ownerNoticeText}>Це твоя подія. Ти вже є її організатором.</Text>
-                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
-                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => joinEvent(selectedEvent)}>
-                      <Text style={styles.actionButtonText}>{loadingDetails ? '...' : 'Приєднатись'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={() => setSelectedEvent(null)}>
-                      <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Закрити</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+              <SelectedEventCard
+                event={selectedEvent}
+                user={user}
+                resolveAssetUrl={resolveAssetUrl}
+                mapMode
+                onClose={() => setSelectedEvent(null)}
+                onJoin={() => joinEvent(selectedEvent)}
+                loadingDetails={loadingDetails}
+              />
             )}
           </View>
         )}
