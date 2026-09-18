@@ -1263,6 +1263,11 @@ export default function App() {
     startTime: '2026-12-15T19:00:00',
   });
   const days = getNextDays();
+  const visibleMapEvents = mapEvents.filter((event) => {
+    if (mapFilter === 'всі') return true;
+    const category = String(event.type || '').split(':')[0].trim().toLowerCase();
+    return category === mapFilter.toLowerCase();
+  });
 
   const handlePhoneChange = (value) => {
     let digits = value.replace(/\D/g, '');
@@ -1358,7 +1363,6 @@ export default function App() {
         lng: String(position.longitude),
         radius: '15',
       });
-      if (mapFilter !== 'всі') params.append('type', mapFilter);
       const response = await fetchWithTimeout(`${API_URL}/events?${params}`, {
         headers: { Authorization: `Bearer ${currentToken}` },
       });
@@ -2337,7 +2341,7 @@ export default function App() {
             <View style={styles.mapCard}>
               <MapView style={styles.map} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
                 <Circle center={mapPosition} radius={15000} fillColor="rgba(91,75,255,0.08)" strokeColor="#5B4BFF" />
-                {mapEvents.map((item) => (
+                {visibleMapEvents.map((item) => (
                   <Marker key={item.id} coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }} title={item.type} description={item.comment} onPress={() => setSelectedEvent(item)} />
                 ))}
               </MapView>
@@ -2367,9 +2371,9 @@ export default function App() {
                 )}
               </View>
             )}
-            {mapEvents.length === 0 ? (
+            {visibleMapEvents.length === 0 ? (
               <View style={styles.emptyState}><Text style={styles.emptyStateText}>Поруч поки немає доступних подій.</Text></View>
-            ) : mapEvents.map((item) => (
+            ) : visibleMapEvents.map((item) => (
               <TouchableOpacity key={`map-event-${item.id}`} style={styles.eventCard} onPress={() => setSelectedEvent(item)}>
                 <Text style={styles.eventType}>{item.type}</Text>
                 <Text style={styles.metaText}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} км від тебе` : item.comment || 'Без опису'}</Text>
