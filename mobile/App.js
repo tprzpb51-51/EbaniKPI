@@ -1402,6 +1402,20 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     (async () => {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+        const current = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+            reject,
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+          );
+        });
+        setMapPosition(current);
+        setLocationStatus('granted');
+        await loadMapEvents(token, current);
+        return;
+      }
+
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
         setLocationStatus('denied');
