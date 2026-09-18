@@ -2216,9 +2216,15 @@ export default function App() {
         body: requestBody,
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.log('Create event response parse error:', responseText);
+      }
       if (!response.ok) {
-        Alert.alert('Помилка', data.error || 'Не вдалося створити подію');
+        Alert.alert('Помилка', data.error || `Не вдалося створити подію (${response.status})`);
         return;
       }
 
@@ -2239,10 +2245,16 @@ export default function App() {
       setSelectedTime('');
       setEventPhoto(null);
       setActiveTab('events');
-      await Promise.all([loadEvents(token), loadMyEvents(token), loadMapEvents(token, mapPosition)]);
+      try {
+        await Promise.all([loadEvents(token), loadMyEvents(token), loadMapEvents(token, mapPosition)]);
+      } catch (refreshError) {
+        console.log('Event lists refresh error:', refreshError);
+      }
     } catch (error) {
       console.log('Create event error:', error);
-      Alert.alert('Помилка', 'Не вдалося створити подію');
+      Alert.alert('Помилка', error?.name === 'AbortError'
+        ? 'Сервер довго відповідає. Перевір, чи подія вже з’явилася у списку.'
+        : 'Не вдалося з’єднатися із сервером під час створення події');
     }
   };
 
