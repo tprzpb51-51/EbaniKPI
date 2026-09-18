@@ -12,6 +12,16 @@ const getChildProps = (children) => React.Children.toArray(children)
 	.map((child) => child?.props)
 	.filter(Boolean);
 
+const getMapContentKey = (children) => JSON.stringify(getChildProps(children).map((props) => ({
+		coordinate: props.coordinate ? {
+			latitude: Number(props.coordinate.latitude),
+			longitude: Number(props.coordinate.longitude),
+		} : null,
+		radius: props.radius || null,
+		title: props.title || '',
+		description: props.description || '',
+	})));
+
 const buildMapHtml = ({ region, children }) => {
 	const childProps = getChildProps(children);
 	const circle = childProps.find((props) => props.radius);
@@ -52,7 +62,8 @@ const buildMapHtml = ({ region, children }) => {
 };
 
 const MapView = ({ children, style, region, onPress }) => {
-	const html = useMemo(() => buildMapHtml({ region, children }), [region.latitude, region.longitude, children]);
+	const contentKey = getMapContentKey(children);
+	const html = useMemo(() => buildMapHtml({ region, children }), [region.latitude, region.longitude, contentKey]);
 
 	const handleMessage = (event) => {
 		try {
@@ -70,7 +81,16 @@ const MapView = ({ children, style, region, onPress }) => {
 		return null;
 	};
 
-	return <WebView originWhitelist={['*']} source={{ html }} style={style} onMessage={handleMessage} javaScriptEnabled domStorageEnabled setSupportMultipleWindows={false} />;
+	return <WebView
+		originWhitelist={['*']}
+		source={{ html }}
+		style={style}
+		onMessage={handleMessage}
+		javaScriptEnabled
+		domStorageEnabled
+		cacheEnabled
+		setSupportMultipleWindows={false}
+	/>;
 };
 
 const Circle = ({ center, radius, fillColor, strokeColor }) => null;
