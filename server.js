@@ -16,7 +16,7 @@ const { DataTypes, Op } = require('sequelize');
 
 const app = express();
 app.use(cors());
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const ensureUserColumns = async () => {
   const queryInterface = sequelize.getQueryInterface();
@@ -24,6 +24,7 @@ const ensureUserColumns = async () => {
   const missingColumns = [
     ['telegramChatId', { type: DataTypes.STRING, allowNull: true }],
     ['passwordTelegramChatId', { type: DataTypes.STRING, allowNull: true }],
+    ['pushToken', { type: DataTypes.STRING, allowNull: true }],
     ['resetCodeHash', { type: DataTypes.STRING, allowNull: true }],
     ['resetCodeExpiresAt', { type: DataTypes.DATE, allowNull: true }]
   ];
@@ -32,6 +33,25 @@ const ensureUserColumns = async () => {
     if (!columns[name]) {
       await queryInterface.addColumn('Users', name, definition);
     }
+  }
+};
+
+const ensureMessageColumns = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+  const columns = await queryInterface.describeTable('Messages');
+  if (!columns.isSystem) {
+    await queryInterface.addColumn('Messages', 'isSystem', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    });
+  }
+  if (!columns.isPinned) {
+    await queryInterface.addColumn('Messages', 'isPinned', {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    });
   }
 };
 
@@ -47,12 +67,35 @@ app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/messages', messageRoutes);
 
-setInterval(async () => {
+const cleanupOldEvents = async () => {
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const oldEvents = await Event.findAll({
+    where: {
+      status: { [Op.in]: ['cancelled', 'finished'] },
+      updatedAt: { [Op.lt]: twoHoursAgo }
+    },
+    attributes: ['id']
+  });
+
+  for (const event of oldEvents) {
+    await Message.destroy({ where: { eventId: event.id } });
+    await EventParticipant.destroy({ where: { EventId: event.id } });
+    await EventBlock.destroy({ where: { eventId: event.id } });
+    await Event.destroy({ where: { id: event.id } });
+  }
+};
+
+const updateFinishedEvents = async () => {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   await Event.update(
     { status: 'finished' },
     { where: { startTime: { [Op.lt]: oneHourAgo }, status: 'active' } }
   );
+  await cleanupOldEvents();
+};
+
+setInterval(() => {
+  updateFinishedEvents().catch((error) => console.error('Помилка очищення подій:', error));
 }, 5 * 60 * 1000);
 
 app.use((err, req, res, next) => {
@@ -69,6 +112,7 @@ sequelize.sync()
   .then(() => {
     return ensureUserColumns();
   })
+    .then(() => ensureMessageColumns())
   .then(() => {
     console.log('База даних підключена і синхронізована');
     app.listen(PORT, () => {

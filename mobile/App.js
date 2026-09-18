@@ -18,10 +18,20 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import MapView, { Circle, Marker } from './src/mapComponents';
 
 const SERVER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://tprz-pb-51.onrender.com';
 const API_URL = `${SERVER_URL}/api`;
+const EXPO_PROJECT_ID = 'f963460e-6ea1-49ee-ba04-3e932883be48';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 const THEMES = {
   прогулянка: { label: 'Прогулянка', subtypes: ['Пробіжка', 'Нове знайомство', 'Вечірня прогулянка'] },
   ігри: { label: 'Настільні ігри', subtypes: ['Настільні ігри в клубі', 'Настільні ігри вдома'] },
@@ -1434,6 +1444,48 @@ export default function App() {
       setLocationStatus('denied');
       await loadMapEvents(token);
     });
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || Platform.OS === 'web') return undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('chat', {
+            name: 'Чати',
+            importance: Notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 250, 250, 250],
+            sound: 'default',
+          });
+        }
+
+        let permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== 'granted' && permission.canAskAgain !== false) {
+          permission = await Notifications.requestPermissionsAsync();
+        }
+        if (permission.status !== 'granted' || cancelled) return;
+
+        const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID });
+        if (cancelled || !tokenResponse.data) return;
+
+        await fetchWithTimeout(`${API_URL}/auth/push-token`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ pushToken: tokenResponse.data }),
+        });
+      } catch (error) {
+        console.log('Push registration error:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   useEffect(() => {

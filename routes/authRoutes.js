@@ -6,8 +6,10 @@ const {
 	register,
 	login,
 	getMe,
+	registerPushToken,
 	updateAvatar,
 	updateName,
+	updateAge,
 	requestPasswordReset,
 	confirmPasswordReset,
 	getTelegramLink,
@@ -17,8 +19,10 @@ const {
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', authMiddleware, getMe);
+router.post('/push-token', authMiddleware, registerPushToken);
 router.post('/avatar', authMiddleware, upload.single('avatar'), updateAvatar);
 router.patch('/name', authMiddleware, updateName);
+router.patch('/age', authMiddleware, updateAge);
 router.post('/password-reset/request', requestPasswordReset);
 router.post('/password-reset/confirm', confirmPasswordReset);
 router.get('/telegram-link', getTelegramLink);

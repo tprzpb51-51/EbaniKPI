@@ -44,6 +44,11 @@ const User = sequelize.define('User', {
     allowNull: true
   },
 
+  pushToken: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+
   resetCodeHash: {
     type: DataTypes.STRING,
     allowNull: true
