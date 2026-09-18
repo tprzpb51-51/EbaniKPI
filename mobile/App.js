@@ -833,6 +833,28 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
     backgroundColor: '#17172A',
   },
+  mapOnlyScreen: {
+    flex: 1,
+    position: 'relative',
+  },
+  mapOnlyCard: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#17172A',
+  },
+  mapOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    zIndex: 10,
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
   map: {
     flex: 1,
     height: 320,
@@ -2330,16 +2352,9 @@ export default function App() {
         )}
 
         {activeTab === 'map' && (
-          <View style={styles.screenScroll}>
-            <View style={styles.chips}>
-              {['всі', 'прогулянка', 'ігри', 'вечірка', 'інтерактиви'].map((filter) => (
-                <TouchableOpacity key={filter} style={[styles.chip, mapFilter === filter && styles.selectedChip]} onPress={() => setMapFilter(filter)}>
-                  <Text style={[styles.chipText, mapFilter === filter && styles.selectedChipText]}>{filter}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.mapCard}>
-              <MapView style={styles.map} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
+          <View style={styles.mapOnlyScreen}>
+            <View style={styles.mapOnlyCard}>
+              <MapView style={[styles.map, { height: '100%', minHeight: 0 }]} region={{ ...mapPosition, latitudeDelta: 0.12, longitudeDelta: 0.12 }} showsUserLocation={locationStatus === 'granted'}>
                 <Circle center={mapPosition} radius={15000} fillColor="rgba(91,75,255,0.08)" strokeColor="#5B4BFF" />
                 {visibleMapEvents.map((item) => (
                   <Marker key={item.id} coordinate={{ latitude: Number(item.latitude), longitude: Number(item.longitude) }} title={item.type} description={item.comment} onPress={() => setSelectedEvent(item)} />
@@ -2347,7 +2362,7 @@ export default function App() {
               </MapView>
             </View>
             {selectedEvent && (
-              <View style={styles.selectedEventCard}>
+              <View style={[styles.selectedEventCard, styles.mapOverlay]}>
                 <Text style={styles.eventType}>Тема: {String(selectedEvent.type || '').split(':')[0].trim()}</Text>
                 <Text style={styles.metaText}>Підтема: {String(selectedEvent.type || '').split(':').slice(1).join(':').trim() || 'Не вказано'}</Text>
                 <Text style={styles.metaText}>Коментар: {selectedEvent.comment || 'Без опису'}</Text>
@@ -2371,15 +2386,6 @@ export default function App() {
                 )}
               </View>
             )}
-            {visibleMapEvents.length === 0 ? (
-              <View style={styles.emptyState}><Text style={styles.emptyStateText}>Поруч поки немає доступних подій.</Text></View>
-            ) : visibleMapEvents.map((item) => (
-              <TouchableOpacity key={`map-event-${item.id}`} style={styles.eventCard} onPress={() => setSelectedEvent(item)}>
-                <Text style={styles.eventType}>{item.type}</Text>
-                <Text style={styles.metaText}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} км від тебе` : item.comment || 'Без опису'}</Text>
-                <TouchableOpacity style={styles.actionButton} onPress={() => joinEvent(item)}><Text style={styles.actionButtonText}>Приєднатись</Text></TouchableOpacity>
-              </TouchableOpacity>
-            ))}
           </View>
         )}
 
