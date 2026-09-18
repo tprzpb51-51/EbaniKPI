@@ -50,7 +50,7 @@ const getNextDays = () => Array.from({ length: 7 }, (_, index) => {
   };
 });
 
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -2045,7 +2045,9 @@ export default function App() {
       }
     } catch (error) {
       console.log('Auth error:', error);
-      setAuthError('Не вдалося з’єднатися з сервером');
+      setAuthError(error?.name === 'AbortError'
+        ? 'Сервер прокидається. Перевір інтернет і спробуй ще раз.'
+        : 'Не вдалося з’єднатися з сервером. Перевір інтернет або спробуй ще раз.');
     }
   };
 
