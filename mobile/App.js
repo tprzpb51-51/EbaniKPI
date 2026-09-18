@@ -1430,6 +1430,11 @@ export default function App() {
       }
 
       const userData = await response.json();
+      if (!userData) {
+        await AsyncStorage.removeItem('ebanikpi_token');
+        setIsLoading(false);
+        return;
+      }
       setToken(savedToken);
       setUser(userData);
       setAvatarUrl(resolveAssetUrl(userData.avatarUrl) || '');
