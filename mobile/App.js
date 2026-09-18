@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import MapView, { Circle, Marker } from './src/mapComponents';
@@ -59,6 +60,11 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     clearTimeout(timeout);
   }
 };
+
+              <TouchableOpacity style={styles.locationButton} onPress={triggerEventPhotoPicker}>
+                <Text style={styles.locationButtonText}>{eventPhoto ? 'Змінити фото локації' : 'Додати фото локації'}</Text>
+              </TouchableOpacity>
+              {eventPhoto && <Image source={{ uri: eventPhoto.uri }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 12 }} />}
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -1259,18 +1265,43 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
+  const [eventPhoto, setEventPhoto] = useState(null);
   const [eventTheme, setEventTheme] = useState('');
 
   const userVerificationState = user?.phoneVerified ? 'Підтверджений' : 'Не верифікований';
   const userVerificationColor = user?.phoneVerified ? '#D4F857' : '#FF5A7A';
+  const isSelectedEventOwner = Boolean(
+    selectedEvent && user && String(selectedEvent.organizerId) === String(user.id)
+  );
 
-  const triggerAvatarPicker = () => {
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert('Фото', 'Дозволь доступ до фотографій');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    return result.canceled ? null : result.assets?.[0] || null;
+  };
+
+  const triggerAvatarPicker = async () => {
     if (Platform.OS === 'web') {
       avatarInputRef.current?.click?.();
       return;
     }
 
-    Alert.alert('Фото в мобільній версії', 'Для мобільного додатку завантаження фото буде додано окремим picker-ом після стабілізації збірки.');
+    const asset = await pickImage();
+    if (asset) handleAvatarUpload(asset);
+  };
+
+  const triggerEventPhotoPicker = async () => {
+    const asset = await pickImage();
+    if (asset) setEventPhoto(asset);
   };
   const [eventSubtype, setEventSubtype] = useState('');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -1689,7 +1720,7 @@ export default function App() {
   };
 
   const togglePinnedMessage = async (message) => {
-    if (!selectedEvent || selectedEvent.organizerId !== user?.id) return;
+    if (!isSelectedEventOwner) return;
     try {
       const response = await fetchWithTimeout(`${API_URL}/messages/${selectedEvent.id}/${message.id}/pin`, {
         method: 'PATCH',
@@ -1799,23 +1830,18 @@ export default function App() {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-      const [nameResponse, ageResponse] = await Promise.all([
-        fetchWithTimeout(`${API_URL}/auth/name`, {
-          method: 'PATCH', headers, body: JSON.stringify({ name: editName.trim() }),
-        }),
-        fetchWithTimeout(`${API_URL}/auth/age`, {
-          method: 'PATCH', headers, body: JSON.stringify({ age: Number(editAge) }),
-        }),
-      ]);
-
-      if (!nameResponse.ok || !ageResponse.ok) {
-        const errorData = await (!nameResponse.ok ? nameResponse : ageResponse).json();
+      const response = await fetchWithTimeout(`${API_URL}/auth/profile`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ name: editName.trim(), age: Number(editAge) }),
+      });
+      const updatedUser = await response.json();
+      if (!response.ok) {
+        const errorData = updatedUser;
         Alert.alert('Помилка', errorData.error || 'Не вдалося зберегти профіль');
         return;
       }
 
-      const meResponse = await fetchWithTimeout(`${API_URL}/auth/me`, { headers });
-      const updatedUser = await meResponse.json();
       setUser(updatedUser);
       setAvatarUrl(resolveAssetUrl(updatedUser.avatarUrl) || '');
       Alert.alert('Готово', 'Профіль оновлено');
@@ -1993,12 +2019,22 @@ export default function App() {
     return `${SERVER_URL}${url}`;
   };
 
-  const handleAvatarUpload = async (file) => {
-    if (!file || !token) return;
+  const handleAvatarUpload = async (asset) => {
+    if (!asset || !token) return;
     try {
       setIsUploadingAvatar(true);
       const formData = new FormData();
-      formData.append('avatar', file);
+      if (Platform.OS === 'web' && asset.file) {
+        formData.append('avatar', asset.file);
+      } else if (Platform.OS === 'web') {
+        formData.append('avatar', asset);
+      } else {
+        formData.append('avatar', {
+          uri: asset.uri,
+          name: asset.fileName || `avatar-${Date.now()}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
+        });
+      }
 
       const response = await fetchWithTimeout(`${API_URL}/auth/avatar`, {
         method: 'POST',
@@ -2097,13 +2133,28 @@ export default function App() {
         return;
       }
 
+      const requestBody = new FormData();
+      Object.entries(payload).forEach(([key, value]) => requestBody.append(key, String(value)));
+      if (eventPhoto) {
+        if (Platform.OS === 'web' && eventPhoto.file) {
+          requestBody.append('photo', eventPhoto.file);
+        } else if (Platform.OS === 'web') {
+          requestBody.append('photo', eventPhoto);
+        } else {
+          requestBody.append('photo', {
+            uri: eventPhoto.uri,
+            name: eventPhoto.fileName || `event-${Date.now()}.jpg`,
+            type: eventPhoto.mimeType || 'image/jpeg',
+          });
+        }
+      }
+
       const response = await fetchWithTimeout(`${API_URL}/events`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: requestBody,
       });
 
       const data = await response.json();
@@ -2127,6 +2178,7 @@ export default function App() {
       setEventTheme('');
       setEventSubtype('');
       setSelectedTime('');
+      setEventPhoto(null);
       setActiveTab('events');
       await Promise.all([loadEvents(token), loadMyEvents(token), loadMapEvents(token, mapPosition)]);
     } catch (error) {
@@ -2755,7 +2807,7 @@ export default function App() {
                       key={message.id || `${message.createdAt}-${message.text}`}
                       activeOpacity={0.88}
                       onLayout={(event) => { messageOffsets.current[message.id] = event.nativeEvent.layout.y; }}
-                      onPress={() => selectedEvent.organizerId === user?.id && setMessageMenuId((current) => current === message.id ? null : message.id)}
+                      onPress={() => isSelectedEventOwner && setMessageMenuId((current) => current === message.id ? null : message.id)}
                       style={[styles.messageBubble, message.senderId === user.id && styles.ownMessage, message.id === activePinnedMessageId && styles.pinnedMessage]}
                     >
                       {message.id === activePinnedMessageId && <Text style={styles.pinnedLabel}>📌  Активне закріплене</Text>}
@@ -2771,7 +2823,7 @@ export default function App() {
                       </View>
                       <Text style={styles.messageText}>{message.text}</Text>
                       <Text style={styles.messageTime}>{message.createdAt ? new Date(message.createdAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) : ''}</Text>
-                      {messageMenuId === message.id && selectedEvent.organizerId === user?.id && <View style={styles.messageActionMenu}>
+                      {messageMenuId === message.id && isSelectedEventOwner && <View style={styles.messageActionMenu}>
                         <TouchableOpacity style={styles.messageActionButton} onPress={() => { setMessageMenuId(null); togglePinnedMessage(message); }}>
                           <Text style={styles.messageActionText}>{message.isPinned ? 'Відкріпити' : '📌  Закріпити'}</Text>
                         </TouchableOpacity>

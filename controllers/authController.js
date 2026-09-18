@@ -154,6 +154,29 @@ const updateAge = async (req, res) => {
     res.status(500).json({ error: 'Помилка оновлення віку' });
   }
 };
+    
+const updateProfile = async (req, res) => {
+  try {
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const age = validateAge(req.body.age);
+
+    if (!name || name.length > 60) {
+      return res.status(400).json({ error: 'Ім’я має містити від 1 до 60 символів' });
+    }
+    if (age === null) {
+      return res.status(400).json({ error: 'Вік має бути цілим числом від 1 до 120 років' });
+    }
+
+    await User.update({ name, age }, { where: { id: req.userId } });
+    const user = await User.findByPk(req.userId, {
+      attributes: ['id', 'name', 'age', 'gender', 'phone', 'avatarUrl', 'phoneVerified']
+    });
+    res.json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Не вдалося зберегти профіль' });
+  }
+};
 
 const requestPasswordReset = async (req, res) => {
   try {
@@ -255,6 +278,7 @@ module.exports = {
   updateAvatar,
   updateName,
   updateAge,
+  updateProfile,
   requestPasswordReset,
   confirmPasswordReset,
   getTelegramLink,

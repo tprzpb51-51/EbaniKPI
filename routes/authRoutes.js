@@ -10,6 +10,7 @@ const {
 	updateAvatar,
 	updateName,
 	updateAge,
+	updateProfile,
 	requestPasswordReset,
 	confirmPasswordReset,
 	getTelegramLink,
@@ -23,6 +24,7 @@ router.post('/push-token', authMiddleware, registerPushToken);
 router.post('/avatar', authMiddleware, upload.single('avatar'), updateAvatar);
 router.patch('/name', authMiddleware, updateName);
 router.patch('/age', authMiddleware, updateAge);
+router.patch('/profile', authMiddleware, updateProfile);
 router.post('/password-reset/request', requestPasswordReset);
 router.post('/password-reset/confirm', confirmPasswordReset);
 router.get('/telegram-link', getTelegramLink);
