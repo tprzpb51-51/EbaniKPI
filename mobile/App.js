@@ -95,13 +95,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  appName: {
-    fontSize: 42,
-    fontWeight: '800',
-    textAlign: 'center',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
   authTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -267,35 +260,6 @@ const styles = StyleSheet.create({
     color: '#5B4BFF',
     fontWeight: '700',
     fontSize: 14,
-  },
-  tabRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 6,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  activeTab: {
-    backgroundColor: '#EEF0FF',
-  },
-  tabText: {
-    fontWeight: '700',
-    fontSize: 13,
-    color: '#69778D',
-  },
-  activeTabText: {
-    color: '#4B47D6',
   },
   welcomeBox: {
     backgroundColor: '#FFFFFF',
@@ -494,9 +458,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  screenScroll: {
-    flex: 1,
-  },
   chatScreen: {
     flex: 1,
     backgroundColor: '#17172A',
@@ -625,9 +586,6 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#2B2854',
   },
-  dangerButton: {
-    backgroundColor: '#FFF0F0',
-  },
   actionButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
@@ -635,9 +593,6 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#D4F857',
-  },
-  dangerButtonText: {
-    color: '#C43D3D',
   },
   selectedEventCard: {
     backgroundColor: '#202039',
