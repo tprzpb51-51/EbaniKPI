@@ -8,6 +8,7 @@ const {
 	getMe,
 	registerPushToken,
 	updateAvatar,
+	removeAvatar,
 	updateName,
 	updateAge,
 	updateProfile,
@@ -22,6 +23,7 @@ router.post('/login', login);
 router.get('/me', authMiddleware, getMe);
 router.post('/push-token', authMiddleware, registerPushToken);
 router.post('/avatar', authMiddleware, upload.single('avatar'), updateAvatar);
+router.delete('/avatar', authMiddleware, removeAvatar);
 router.patch('/name', authMiddleware, updateName);
 router.patch('/age', authMiddleware, updateAge);
 router.patch('/profile', authMiddleware, updateProfile);

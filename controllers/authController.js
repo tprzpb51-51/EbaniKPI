@@ -106,6 +106,16 @@ const updateAvatar = async (req, res) => {
   }
 };
 
+const removeAvatar = async (req, res) => {
+  try {
+    await User.update({ avatarUrl: null }, { where: { id: req.userId } });
+    res.json({ message: 'Аватар видалено' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Не вдалося видалити аватар' });
+  }
+};
+
 const updateName = async (req, res) => {
   try {
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
@@ -277,6 +287,7 @@ module.exports = {
   getMe,
   registerPushToken,
   updateAvatar,
+  removeAvatar,
   updateName,
   updateAge,
   updateProfile,

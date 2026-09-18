@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -473,6 +474,32 @@ const styles = StyleSheet.create({
   avatarButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  removeAvatarButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255,90,122,0.12)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,90,122,0.35)',
+  },
+  removeAvatarButtonText: {
+    color: '#FF7A96',
+    fontWeight: '700',
+  },
+  removePhotoButton: {
+    backgroundColor: 'rgba(255,90,122,0.12)',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,90,122,0.35)',
+  },
+  removePhotoButtonText: {
+    color: '#FF7A96',
+    fontWeight: '800',
   },
   chatScreen: {
     flex: 1,
@@ -1310,6 +1337,27 @@ export default function App() {
     const asset = await pickImage();
     if (asset) setEventPhoto(asset);
   };
+
+  const resetCreateDraft = () => {
+    setEventPhoto(null);
+    setEventTheme('');
+    setEventSubtype('');
+    setSelectedDayIndex(0);
+    setSelectedTime('');
+    setAddressQuery('');
+    setAddressResults([]);
+    setEventForm({
+      type: 'вечірка',
+      ageMin: '18',
+      ageMax: '35',
+      maxParticipants: '10',
+      genderPreference: 'будь-хто',
+      comment: 'Погуляємо разом',
+      latitude: '49.8397',
+      longitude: '24.0297',
+      startTime: '2026-12-15T19:00:00',
+    });
+  };
   const [eventSubtype, setEventSubtype] = useState('');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedTime, setSelectedTime] = useState('');
@@ -2096,8 +2144,28 @@ export default function App() {
       setIsUploadingAvatar(false);
     }
   };
+  const removeAvatar = async () => {
+    if (!token || !avatarUrl) return;
+    try {
+      const response = await fetchWithTimeout(`${API_URL}/auth/avatar`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        Alert.alert('Помилка', data.error || 'Не вдалося видалити фото');
+        return;
+      }
+      setAvatarUrl('');
+      setUser((current) => current ? { ...current, avatarUrl: null } : current);
+      Alert.alert('Готово', 'Фото профілю видалено');
+    } catch (error) {
+      Alert.alert('Помилка', 'Не вдалося з’єднатися із сервером');
+    }
+  };
 
   const goToMainMenu = () => {
+    if (activeTab === 'create') resetCreateDraft();
     setActiveTab('menu');
   };
 
@@ -2110,7 +2178,31 @@ export default function App() {
     loadMyEvents();
   };
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const handleHardwareBack = () => {
+      if (showVerificationChoice) {
+        setShowVerificationChoice(false);
+        return true;
+      }
+      if (activeTab === 'menu') return false;
+      if (activeTab === 'chat') {
+        goBackFromChat();
+        return true;
+      }
+      if (activeTab === 'create') resetCreateDraft();
+      setSelectedEvent(null);
+      setActiveTab('menu');
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
+    return () => subscription.remove();
+  }, [activeTab, showVerificationChoice, selectedEvent]);
+
   const handleLogout = async () => {
+    resetCreateDraft();
     setShowVerificationChoice(false);
     setVerificationContext('register');
     setIsVerified(false);
@@ -2930,6 +3022,16 @@ export default function App() {
                 >
                   <Text style={styles.avatarButtonText}>{isUploadingAvatar ? 'Завантаження...' : 'Додати фото'}</Text>
                 </TouchableOpacity>
+                {avatarUrl ? (
+                  <TouchableOpacity style={styles.removeAvatarButton} onPress={removeAvatar} disabled={isUploadingAvatar}>
+                    <Text style={styles.removeAvatarButtonText}>Видалити</Text>
+                  </TouchableOpacity>
+                ) : null}
+                              {eventPhoto && (
+                                <TouchableOpacity style={styles.removePhotoButton} onPress={() => setEventPhoto(null)}>
+                                  <Text style={styles.removePhotoButtonText}>Видалити фото локації</Text>
+                                </TouchableOpacity>
+                              )}
                 {Platform.OS === 'web' && (
                   <input
                     ref={avatarInputRef}
