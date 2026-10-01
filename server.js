@@ -71,8 +71,10 @@ const cleanupOldEvents = async () => {
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
   const oldEvents = await Event.findAll({
     where: {
-      status: { [Op.in]: ['cancelled', 'finished'] },
-      updatedAt: { [Op.lt]: twoHoursAgo }
+      [Op.or]: [
+        { status: 'finished', startTime: { [Op.lt]: twoHoursAgo } },
+        { status: 'cancelled', updatedAt: { [Op.lt]: twoHoursAgo } }
+      ]
     },
     attributes: ['id']
   });
