@@ -119,7 +119,11 @@ sequelize.sync()
     console.log('База даних підключена і синхронізована');
     app.listen(PORT, () => {
       console.log(`Сервер запущено на http://localhost:${PORT}`);
-      startTelegramBot();
+      if (process.env.TELEGRAM_POLLING_ENABLED === 'true') {
+        startTelegramBot();
+      } else {
+        console.log('Telegram polling вимкнено для цього сервісу');
+      }
     });
   })
   .catch((err) => {
